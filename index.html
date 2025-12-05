@@ -1,1 +1,132 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>3D Shooter Map Builder</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #info { position: absolute; top: 10px; left: 10px; color: white; }
+        button { margin: 2px; }
+    </style>
+</head>
+<body>
+<div id="info">
+    <button onclick="setBuildMode('floor')">Boden</button>
+    <button onclick="setBuildMode('wall')">Wand</button>
+    <button onclick="setBuildMode('stairs')">Treppen</button>
+    <button onclick="setBuildMode('corner')">Ecke</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/js/controls/PointerLockControls.js"></script>
+
+<script>
+let scene, camera, renderer, controls;
+let buildMode = 'floor';
+let objects = [];
+
+init();
+animate();
+
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB); // Himmelblau
+
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 2, 5);
+
+    renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Licht
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(5,10,5);
+    scene.add(light);
+
+    // Boden
+    const floorGeometry = new THREE.PlaneGeometry(50, 50);
+    const floorMaterial = new THREE.MeshPhongMaterial({color: 0x228B22});
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    floor.rotation.x = -Math.PI/2;
+    scene.add(floor);
+
+    // Controls
+    controls = new THREE.PointerLockControls(camera, document.body);
+    document.body.addEventListener('click', () => controls.lock());
+
+    // Spielerbewegung
+    const move = { forward:false, backward:false, left:false, right:false };
+    const velocity = new THREE.Vector3();
+
+    document.addEventListener('keydown', e => {
+        if(e.code=='KeyW') move.forward=true;
+        if(e.code=='KeyS') move.backward=true;
+        if(e.code=='KeyA') move.left=true;
+        if(e.code=='KeyD') move.right=true;
+    });
+    document.addEventListener('keyup', e => {
+        if(e.code=='KeyW') move.forward=false;
+        if(e.code=='KeyS') move.backward=false;
+        if(e.code=='KeyA') move.left=false;
+        if(e.code=='KeyD') move.right=false;
+    });
+
+    function updatePlayer() {
+        const speed = 0.1;
+        velocity.set(0,0,0);
+        if(move.forward) velocity.z -= speed;
+        if(move.backward) velocity.z += speed;
+        if(move.left) velocity.x -= speed;
+        if(move.right) velocity.x += speed;
+
+        controls.moveRight(velocity.x);
+        controls.moveForward(velocity.z);
+    }
+
+    // Build Mode - Klick auf Boden
+    window.addEventListener('click', (e) => {
+        if(controls.isLocked) {
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+            mouse.x = 0; mouse.y = 0; // Mitte des Bildschirms
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(floor);
+            if(intersects.length > 0){
+                placeObject(intersects[0].point);
+            }
+        }
+    });
+
+    function animateLoop() {
+        requestAnimationFrame(animateLoop);
+        updatePlayer();
+        renderer.render(scene, camera);
+    }
+    animateLoop();
+}
+
+// Objekt platzieren
+function placeObject(pos) {
+    let geometry, material = new THREE.MeshPhongMaterial({color:0x888888});
+    switch(buildMode){
+        case 'floor':
+            geometry = new THREE.BoxGeometry(1,0.1,1); break;
+        case 'wall':
+            geometry = new THREE.BoxGeometry(1,2,0.1); break;
+        case 'stairs':
+            geometry = new THREE.BoxGeometry(1,0.5,1); break;
+        case 'corner':
+            geometry = new THREE.BoxGeometry(1,2,1); break;
+    }
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(Math.round(pos.x), geometry.parameters.height/2, Math.round(pos.z));
+    scene.add(mesh);
+    objects.push(mesh);
+}
+
+function setBuildMode(mode){ buildMode = mode; }
+</script>
+</body>
+</html>
 
