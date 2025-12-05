@@ -1,16 +1,240 @@
 <!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="utf-8">
-        <title>Fake News</title></title>
-    </head>
-    <body>
-		<!-- Deutsch Fake News-->
-		<h1>Deutsch Fake News</h1>
-		<p> Du wirst heute was über Fake News lernen.</p>
-		<p>Das wird sein was sind fake News, wie erkenst du sie und was kannst du gegen sie machen. </p>
-		<h2> Was sind Fake News</h2>
-		<p>Fake News sind News die nicht stimmen oder frei erfunden sind. </p>
-		<p>Haupt</p>
-	</body>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<title>Battle Royale mit Full-Building</title>
+<style>
+    body { margin: 0; overflow: hidden; background: #111; }
+    canvas { background: #222; display: block; margin: 0 auto; }
+</style>
+</head>
+<body>
+
+<canvas id="game" width="900" height="600"></canvas>
+
+<script>
+// ========= BASIC SETUP =========
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let keys = {};
+let buildMode = false;
+
+// Build Type: 1 = Wall, 2 = Floor, 3 = Ramp, 4 = Cone
+let buildType = 1;
+
+// Player
+const player = {
+    x: 450, y: 300,
+    size: 20,
+    speed: 4,
+    hp: 100
+};
+
+// Bullets
+let bullets = [];
+
+// Enemies
+let enemies = [];
+function spawnEnemy() {
+    enemies.push({
+        x: Math.random()*canvas.width,
+        y: Math.random()*canvas.height,
+        size: 20,
+        hp: 40
+    });
+}
+setInterval(spawnEnemy, 2000);
+
+// Walls/Floors/Ramps/Cones
+let builds = [];
+
+// ========= INPUT =========
+document.addEventListener("keydown", e => {
+    keys[e.key] = true;
+
+    if (e.key === "f") buildMode = !buildMode;
+
+    if (e.key === "1") buildType = 1; // Wall
+    if (e.key === "2") buildType = 2; // Floor
+    if (e.key === "3") buildType = 3; // Ramp
+    if (e.key === "4") buildType = 4; // Cone
+});
+
+document.addEventListener("keyup", e => keys[e.key] = false);
+
+document.addEventListener("click", e => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    if (buildMode) {
+        // --- PLACE BUILD ---
+        builds.push({
+            type: buildType,
+            x: mx - 25,
+            y: my - 25,
+            size: 50,
+            hp: 200
+        });
+        return;
+    }
+
+    // --- SHOOT BULLET ---
+    bullets.push({
+        x: player.x,
+        y: player.y,
+        dx: (mx - player.x)/20,
+        dy: (my - player.y)/20,
+        size: 5
+    });
+});
+
+// ========= GAME LOOP =========
+function update() {
+
+    // Movement
+    if (keys["w"]) player.y -= player.speed;
+    if (keys["s"]) player.y += player.speed;
+    if (keys["a"]) player.x -= player.speed;
+    if (keys["d"]) player.x += player.speed;
+
+    // Build collision
+    builds.forEach(b => {
+        if (collide(player.x, player.y, player.size, b)) {
+            if (keys["w"]) player.y += player.speed;
+            if (keys["s"]) player.y -= player.speed;
+            if (keys["a"]) player.x += player.speed;
+            if (keys["d"]) player.x -= player.speed;
+        }
+    });
+
+    // Bullets
+    bullets.forEach(b => {
+        b.x += b.dx;
+        b.y += b.dy;
+    });
+
+    // Bullets hit builds
+    bullets.forEach((b, bi) => {
+        builds.forEach((bl, bli) => {
+            if (pointInside(b.x, b.y, bl)) {
+                bl.hp -= 20;
+                bullets.splice(bi, 1);
+            }
+        });
+    });
+
+    // Remove broken builds
+    builds = builds.filter(b => b.hp > 0);
+
+    // Enemies
+    enemies.forEach(e => {
+        const ang = Math.atan2(player.y - e.y, player.x - e.x);
+        e.x += Math.cos(ang)*1.2;
+        e.y += Math.sin(ang)*1.2;
+
+        // Collide with builds
+        builds.forEach(b => {
+            if (collide(e.x, e.y, e.size, b)) {
+                e.x -= Math.cos(ang)*1.2;
+                e.y -= Math.sin(ang)*1.2;
+            }
+        });
+
+        // Attack player
+        const dist = Math.hypot(player.x - e.x, player.y - e.y);
+        if (dist < player.size + e.size) player.hp -= 0.5;
+    });
+
+    // Bullets hit enemies
+    bullets.forEach((b, bi) => {
+        enemies.forEach((e, ei) => {
+            const dist = Math.hypot(b.x - e.x, b.y - e.y);
+            if (dist < b.size + e.size) {
+                e.hp -= 20;
+                bullets.splice(bi, 1);
+            }
+        });
+    });
+
+    enemies = enemies.filter(e => e.hp > 0);
+
+    draw();
+    requestAnimationFrame(update);
+}
+
+// ========= COLLISION HELPERS =========
+function collide(x, y, r, b) {
+    return (
+        x + r > b.x &&
+        x - r < b.x + b.size &&
+        y + r > b.y &&
+        y - r < b.y + b.size
+    );
+}
+
+function pointInside(px, py, b) {
+    return (px > b.x && px < b.x+b.size && py > b.y && py < b.y+b.size);
+}
+
+// ========= DRAW =========
+function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // Player
+    ctx.fillStyle = "cyan";
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.size, 0, Math.PI*2);
+    ctx.fill();
+
+    // HP
+    ctx.fillStyle = "white";
+    ctx.font = "20px Arial";
+    ctx.fillText("HP: "+Math.floor(player.hp), 20, 30);
+
+    // Build Mode UI
+    if (buildMode) {
+        ctx.fillStyle = "yellow";
+        ctx.font = "24px Arial";
+        ctx.fillText("BUILD MODE | 1:Wall 2:Floor 3:Ramp 4:Cone", 200, 30);
+    }
+
+    // Bullets
+    ctx.fillStyle = "yellow";
+    bullets.forEach(b => {
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.size, 0, Math.PI*2);
+        ctx.fill();
+    });
+
+    // Builds
+    builds.forEach(b => {
+        // Color by type
+        if (b.type === 1) ctx.fillStyle = "#6688ff"; // wall
+        if (b.type === 2) ctx.fillStyle = "#55ff55"; // floor
+        if (b.type === 3) ctx.fillStyle = "#ffaa44"; // ramp
+        if (b.type === 4) ctx.fillStyle = "#ff55ff"; // cone
+
+        // Draw square
+        ctx.fillRect(b.x, b.y, b.size, b.size);
+
+        // HP bar
+        ctx.fillStyle = "white";
+        ctx.fillRect(b.x, b.y-8, b.size*(b.hp/200), 5);
+    });
+
+    // Enemies
+    ctx.fillStyle = "red";
+    enemies.forEach(e => {
+        ctx.beginPath();
+        ctx.arc(e.x, e.y, e.size, 0, Math.PI*2);
+        ctx.fill();
+    });
+}
+
+update();
+</script>
+
+</body>
 </html>
